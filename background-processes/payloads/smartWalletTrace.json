@@ -1,0 +1,44 @@
+{
+  "scanReportId": "nebula_scan_20250629_076",
+  "timestamp": "2025-06-29T06:31:44Z",
+  "engine": "NebulaWatch::TokenIntelUnit",
+  "tokenData": {
+    "symbol": "KRAZE",
+    "mint": "9kfThkY7E2R3cKfXmBxHE2EFsgx1rLzfpVpThy6dM1Pr",
+    "status": "unverified",
+    "launchWindow": "2025-06-28T23:15:00Z"
+  },
+  "riskIndicators": {
+    "dexLiquidityDrop": true,
+    "initMintInLast6h": true,
+    "whaleAbsence": true,
+    "clusterBehaviorScore": 78
+  },
+  "telemetry": {
+    "liquidityChangePercent": -53.4,
+    "volume24h_SOL": 183.1,
+    "priceFluctuation": 39.5,
+    "uniqueBuyers": 9,
+    "smartWalletInteractions": 0,
+    "linkedContracts": 1
+  },
+  "observations": [
+    {
+      "tag": "🌀 Rapid Mint",
+      "detail": "Token created less than 6 hours ago with high swap velocity"
+    },
+    {
+      "tag": "📉 Drained Liquidity",
+      "detail": "Over 50% liquidity removed — likely early stage extraction"
+    },
+    {
+      "tag": "🤖 Low Signal",
+      "detail": "No verified smart wallets engaged — signal-to-noise ratio low"
+    }
+  ],
+  "assessment": {
+    "threatTier": "Critical",
+    "recommendation": "Flag for review — suspend early access tools and disable trending listings",
+    "certainty": 0.89
+  }
+}

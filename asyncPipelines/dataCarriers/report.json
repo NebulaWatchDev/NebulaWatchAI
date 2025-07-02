@@ -1,0 +1,39 @@
+{
+  "nebulaReportId": "nebula_watch_20250629_117",
+  "analyzedAt": "2025-06-29T05:44:00Z",
+  "originWallet": {
+    "address": "9ZTeQX4NaGsWUvLtVDXgr9Byqrf1S4dWpbcgVKU6tvFr",
+    "joinedNetwork": "2024-12-21T09:47:00Z"
+  },
+  "activitySnapshot": {
+    "txsInLastHour": 94,
+    "uniqueTokensInteracted": 11,
+    "whaleTransfersDetected": 2,
+    "clusterPeers": 38,
+    "solMoved": 1224.18
+  },
+  "networkAnomalies": [
+    {
+      "type": "Cross-Cluster Sync",
+      "description": "Synchronized swaps across Aurora-12 and Echo-9 within 90 seconds"
+    },
+    {
+      "type": "Whale-Triggered Surge",
+      "description": "Mass volume burst followed by wallet silence pattern"
+    },
+    {
+      "type": "Mirror Wallet Echo",
+      "description": "Found 3 wallets mimicking identical token routes within ±5 blocks"
+    }
+  ],
+  "detectedFlags": {
+    "multiDomainActivity": true,
+    "walletMimicryPattern": true,
+    "temporalBurstSignal": true
+  },
+  "nebulaScore": {
+    "status": "Under High Surveillance",
+    "scoreValue": 92,
+    "intelSummary": "Patterns resemble previously documented manipulative events. Add to active anomaly grid."
+  }
+}
