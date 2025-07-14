@@ -1,5 +1,3 @@
-// burstSignalDetector.ts
-
 import axios from "axios"
 
 interface TokenBurstSignal {
