@@ -1,84 +1,39 @@
-// nebulaWalletReport.ts
-
-import { z } from "zod"
-
-/**
- * Zod schemas for runtime validation
- */
-const OriginWalletSchema = z.object({
-  address: z.string().min(1),
-  joinedNetwork: z.string().refine(s => !isNaN(Date.parse(s)), {
-    message: "joinedNetwork must be an ISO timestamp",
-  }),
-})
-
-const ActivitySnapshotSchema = z.object({
-  txsInLastHour: z.number().int().nonnegative(),
-  uniqueTokensInteracted: z.number().int().nonnegative(),
-  whaleTransfersDetected: z.number().int().nonnegative(),
-  clusterPeers: z.number().int().nonnegative(),
-  solMoved: z.number().nonnegative(),
-})
-
-const NetworkAnomalySchema = z.object({
-  type: z.string(),
-  description: z.string(),
-})
-
-const DetectedFlagsSchema = z.object({
-  multiDomainActivity: z.boolean(),
-  walletMimicryPattern: z.boolean(),
-  temporalBurstSignal: z.boolean(),
-})
-
-const NebulaScoreSchema = z.object({
-  status: z.string(),
-  scoreValue: z.number().min(0).max(100),
-  intelSummary: z.string(),
-})
-
-const NebulaWalletReportSchema = z.object({
-  nebulaReportId: z.string(),
-  analyzedAt: z.string().refine(s => !isNaN(Date.parse(s)), {
-    message: "analyzedAt must be an ISO timestamp",
-  }),
-  originWallet: OriginWalletSchema,
-  activitySnapshot: ActivitySnapshotSchema,
-  networkAnomalies: z.array(NetworkAnomalySchema).min(1),
-  detectedFlags: DetectedFlagsSchema,
-  nebulaScore: NebulaScoreSchema,
-})
-
-/**
- * TypeScript types inferred from schemas
- */
-export type OriginWallet = z.infer<typeof OriginWalletSchema>
-export type ActivitySnapshot = z.infer<typeof ActivitySnapshotSchema>
-export type NetworkAnomaly = z.infer<typeof NetworkAnomalySchema>
-export type DetectedFlags = z.infer<typeof DetectedFlagsSchema>
-export type NebulaScore = z.infer<typeof NebulaScoreSchema>
-
-export interface NebulaWalletReport extends z.infer<typeof NebulaWalletReportSchema> {}
-
-/**
- * Parse and validate a raw object into a NebulaWalletReport.
- * @param raw - the parsed JSON object
- * @throws ZodError if validation fails
- */
-export function parseNebulaWalletReport(raw: unknown): NebulaWalletReport {
-  return NebulaWalletReportSchema.parse(raw)
+{
+  "nebulaReportId": "nebula_watch_20250629_117",
+  "analyzedAt": "2025-06-29T05:44:00Z",
+  "originWallet": {
+    "address": "9ZTeQX4NaGsWUvLtVDXgr9Byqrf1S4dWpbcgVKU6tvFr",
+    "joinedNetwork": "2024-12-21T09:47:00Z"
+  },
+  "activitySnapshot": {
+    "txsInLastHour": 94,
+    "uniqueTokensInteracted": 11,
+    "whaleTransfersDetected": 2,
+    "clusterPeers": 38,
+    "solMoved": 1224.18
+  },
+  "networkAnomalies": [
+    {
+      "type": "Cross-Cluster Sync",
+      "description": "Synchronized swaps across Aurora-12 and Echo-9 within 90 seconds"
+    },
+    {
+      "type": "Whale-Triggered Surge",
+      "description": "Mass volume burst followed by wallet silence pattern"
+    },
+    {
+      "type": "Mirror Wallet Echo",
+      "description": "Found 3 wallets mimicking identical token routes within ±5 blocks"
+    }
+  ],
+  "detectedFlags": {
+    "multiDomainActivity": true,
+    "walletMimicryPattern": true,
+    "temporalBurstSignal": true
+  },
+  "nebulaScore": {
+    "status": "Under High Surveillance",
+    "scoreValue": 92,
+    "intelSummary": "Patterns resemble previously documented manipulative events. Add to active anomaly grid."
+  }
 }
-
-/**
- * Example usage:
- */
-// if (require.main === module) {
-//   import fs from "fs"
-//   const raw = JSON.parse(fs.readFileSync("walletReport.json", "utf-8"))
-//   try {
-//     const report = parseNebulaWalletReport(raw)
-//     console.log("Validated report:", report)
-//   } catch (err) {
-//     console.error("Invalid report:", err.errors)
-//   }
-// }
