@@ -1,44 +1,98 @@
-{
-  "scanReportId": "nebula_scan_20250629_076",
-  "timestamp": "2025-06-29T06:31:44Z",
-  "engine": "NebulaWatch::TokenIntelUnit",
-  "tokenData": {
-    "symbol": "KRAZE",
-    "mint": "9kfThkY7E2R3cKfXmBxHE2EFsgx1rLzfpVpThy6dM1Pr",
-    "status": "unverified",
-    "launchWindow": "2025-06-28T23:15:00Z"
-  },
-  "riskIndicators": {
-    "dexLiquidityDrop": true,
-    "initMintInLast6h": true,
-    "whaleAbsence": true,
-    "clusterBehaviorScore": 78
-  },
-  "telemetry": {
-    "liquidityChangePercent": -53.4,
-    "volume24h_SOL": 183.1,
-    "priceFluctuation": 39.5,
-    "uniqueBuyers": 9,
-    "smartWalletInteractions": 0,
-    "linkedContracts": 1
-  },
-  "observations": [
-    {
-      "tag": "🌀 Rapid Mint",
-      "detail": "Token created less than 6 hours ago with high swap velocity"
-    },
-    {
-      "tag": "📉 Drained Liquidity",
-      "detail": "Over 50% liquidity removed — likely early stage extraction"
-    },
-    {
-      "tag": "🤖 Low Signal",
-      "detail": "No verified smart wallets engaged — signal-to-noise ratio low"
-    }
-  ],
-  "assessment": {
-    "threatTier": "Critical",
-    "recommendation": "Flag for review — suspend early access tools and disable trending listings",
-    "certainty": 0.89
+// nebulaScanReport.ts
+
+import { z } from "zod"
+
+/**
+ * Zod schemas for runtime validation
+ */
+const TokenDataSchema = z.object({
+  symbol: z.string(),
+  mint: z.string().url().or(z.string()), // mint string, optionally URL-like
+  status: z.enum(["unverified", "verified", "suspicious", "safe"]),
+  launchWindow: z.string().refine(s => !isNaN(Date.parse(s)), {
+    message: "launchWindow must be an ISO timestamp",
+  }),
+})
+
+const RiskIndicatorsSchema = z.object({
+  dexLiquidityDrop: z.boolean(),
+  initMintInLast6h: z.boolean(),
+  whaleAbsence: z.boolean(),
+  clusterBehaviorScore: z.number().min(0).max(100),
+})
+
+const TelemetrySchema = z.object({
+  liquidityChangePercent: z.number(),
+  volume24h_SOL: z.number(),
+  priceFluctuation: z.number(),
+  uniqueBuyers: z.number().int().nonnegative(),
+  smartWalletInteractions: z.number().int().nonnegative(),
+  linkedContracts: z.number().int().nonnegative(),
+})
+
+const ObservationSchema = z.object({
+  tag: z.string(),
+  detail: z.string(),
+})
+
+const AssessmentSchema = z.object({
+  threatTier: z.enum(["Low", "Moderate", "High", "Critical"]),
+  recommendation: z.string(),
+  certainty: z.number().min(0).max(1),
+})
+
+const ScanReportSchema = z.object({
+  scanReportId: z.string(),
+  timestamp: z.string().refine(s => !isNaN(Date.parse(s)), {
+    message: "timestamp must be an ISO timestamp",
+  }),
+  engine: z.string(),
+  tokenData: TokenDataSchema,
+  riskIndicators: RiskIndicatorsSchema,
+  telemetry: TelemetrySchema,
+  observations: z.array(ObservationSchema).min(1),
+  assessment: AssessmentSchema,
+})
+
+/**
+ * TypeScript interfaces inferred from schemas
+ */
+export type TokenData = z.infer<typeof TokenDataSchema>
+export type RiskIndicators = z.infer<typeof RiskIndicatorsSchema>
+export type Telemetry = z.infer<typeof TelemetrySchema>
+export type Observation = z.infer<typeof ObservationSchema>
+export type Assessment = z.infer<typeof AssessmentSchema>
+
+export interface ScanReport {
+  scanReportId: string
+  timestamp: string
+  engine: string
+  tokenData: TokenData
+  riskIndicators: RiskIndicators
+  telemetry: Telemetry
+  observations: Observation[]
+  assessment: Assessment
+}
+
+/**
+ * Parse and validate a raw object into a ScanReport.
+ * @param raw - any JSON-parsed object
+ * @throws ZodError if validation fails
+ */
+export function parseScanReport(raw: unknown): ScanReport {
+  return ScanReportSchema.parse(raw)
+}
+
+/**
+ * Example usage:
+ */
+if (require.main === module) {
+  import fs from "fs"
+  const raw = JSON.parse(fs.readFileSync("report.json", "utf-8"))
+  try {
+    const report = parseScanReport(raw)
+    console.log("Validated report:", report)
+  } catch (err) {
+    console.error("Invalid scan report:", err.errors)
   }
 }
