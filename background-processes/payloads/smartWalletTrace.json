@@ -1,98 +1,94 @@
-// nebulaScanReport.ts
-
-import { z } from "zod"
-
-/**
- * Zod schemas for runtime validation
- */
-const TokenDataSchema = z.object({
-  symbol: z.string(),
-  mint: z.string().url().or(z.string()), // mint string, optionally URL-like
-  status: z.enum(["unverified", "verified", "suspicious", "safe"]),
-  launchWindow: z.string().refine(s => !isNaN(Date.parse(s)), {
-    message: "launchWindow must be an ISO timestamp",
-  }),
-})
-
-const RiskIndicatorsSchema = z.object({
-  dexLiquidityDrop: z.boolean(),
-  initMintInLast6h: z.boolean(),
-  whaleAbsence: z.boolean(),
-  clusterBehaviorScore: z.number().min(0).max(100),
-})
-
-const TelemetrySchema = z.object({
-  liquidityChangePercent: z.number(),
-  volume24h_SOL: z.number(),
-  priceFluctuation: z.number(),
-  uniqueBuyers: z.number().int().nonnegative(),
-  smartWalletInteractions: z.number().int().nonnegative(),
-  linkedContracts: z.number().int().nonnegative(),
-})
-
-const ObservationSchema = z.object({
-  tag: z.string(),
-  detail: z.string(),
-})
-
-const AssessmentSchema = z.object({
-  threatTier: z.enum(["Low", "Moderate", "High", "Critical"]),
-  recommendation: z.string(),
-  certainty: z.number().min(0).max(1),
-})
-
-const ScanReportSchema = z.object({
-  scanReportId: z.string(),
-  timestamp: z.string().refine(s => !isNaN(Date.parse(s)), {
-    message: "timestamp must be an ISO timestamp",
-  }),
-  engine: z.string(),
-  tokenData: TokenDataSchema,
-  riskIndicators: RiskIndicatorsSchema,
-  telemetry: TelemetrySchema,
-  observations: z.array(ObservationSchema).min(1),
-  assessment: AssessmentSchema,
-})
-
-/**
- * TypeScript interfaces inferred from schemas
- */
-export type TokenData = z.infer<typeof TokenDataSchema>
-export type RiskIndicators = z.infer<typeof RiskIndicatorsSchema>
-export type Telemetry = z.infer<typeof TelemetrySchema>
-export type Observation = z.infer<typeof ObservationSchema>
-export type Assessment = z.infer<typeof AssessmentSchema>
-
-export interface ScanReport {
-  scanReportId: string
-  timestamp: string
-  engine: string
-  tokenData: TokenData
-  riskIndicators: RiskIndicators
-  telemetry: Telemetry
-  observations: Observation[]
-  assessment: Assessment
-}
-
-/**
- * Parse and validate a raw object into a ScanReport.
- * @param raw - any JSON-parsed object
- * @throws ZodError if validation fails
- */
-export function parseScanReport(raw: unknown): ScanReport {
-  return ScanReportSchema.parse(raw)
-}
-
-/**
- * Example usage:
- */
-if (require.main === module) {
-  import fs from "fs"
-  const raw = JSON.parse(fs.readFileSync("report.json", "utf-8"))
-  try {
-    const report = parseScanReport(raw)
-    console.log("Validated report:", report)
-  } catch (err) {
-    console.error("Invalid scan report:", err.errors)
-  }
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ScanReport",
+  "type": "object",
+  "properties": {
+    "scanReportId": {
+      "type": "string"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "engine": {
+      "type": "string"
+    },
+    "tokenData": {
+      "type": "object",
+      "properties": {
+        "symbol": { "type": "string" },
+        "mint": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["unverified", "verified", "suspicious", "safe"]
+        },
+        "launchWindow": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["symbol", "mint", "status", "launchWindow"],
+      "additionalProperties": false
+    },
+    "riskIndicators": {
+      "type": "object",
+      "properties": {
+        "dexLiquidityDrop": { "type": "boolean" },
+        "initMintInLast6h": { "type": "boolean" },
+        "whaleAbsence": { "type": "boolean" },
+        "clusterBehaviorScore": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        }
+      },
+      "required": ["dexLiquidityDrop", "initMintInLast6h", "whaleAbsence", "clusterBehaviorScore"],
+      "additionalProperties": false
+    },
+    "telemetry": {
+      "type": "object",
+      "properties": {
+        "liquidityChangePercent": { "type": "number" },
+        "volume24h_SOL": { "type": "number" },
+        "priceFluctuation": { "type": "number" },
+        "uniqueBuyers": { "type": "integer", "minimum": 0 },
+        "smartWalletInteractions": { "type": "integer", "minimum": 0 },
+        "linkedContracts": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["liquidityChangePercent", "volume24h_SOL", "priceFluctuation", "uniqueBuyers", "smartWalletInteractions", "linkedContracts"],
+      "additionalProperties": false
+    },
+    "observations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tag": { "type": "string" },
+          "detail": { "type": "string" }
+        },
+        "required": ["tag", "detail"],
+        "additionalProperties": false
+      },
+      "minItems": 1
+    },
+    "assessment": {
+      "type": "object",
+      "properties": {
+        "threatTier": {
+          "type": "string",
+          "enum": ["Low", "Moderate", "High", "Critical"]
+        },
+        "recommendation": { "type": "string" },
+        "certainty": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": ["threatTier", "recommendation", "certainty"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["scanReportId", "timestamp", "engine", "tokenData", "riskIndicators", "telemetry", "observations", "assessment"],
+  "additionalProperties": false
 }
