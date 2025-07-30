@@ -1,37 +1,44 @@
-import { z } from "zod"
+import { z, ZodError } from "zod"
 
 export const TransferSchema = z.object({
-  from: z.string().length(44, "Invalid wallet address"),
-  to: z.string().length(44, "Invalid wallet address"),
-  amount: z.number().positive(),
-  tokenMint: z.string().length(44),
+  from: z
+    .string()
+    .length(44, "Invalid wallet address")
+    .transform((s) => s.trim()),
+  to: z
+    .string()
+    .length(44, "Invalid wallet address")
+    .transform((s) => s.trim()),
+  amount: z
+    .union([z.number(), z.string().regex(/^\d+(\.\d+)?$/, "Invalid amount")])
+    .transform((val) => (typeof val === "string" ? Number(val) : val))
+    .refine((n) => n > 0, "Amount must be positive"),
+  tokenMint: z.string().length(44, "Invalid token mint address"),
   type: z.enum(["stake", "unstake", "mint", "burn", "transfer"]),
-  timestamp: z.number().optional()
+  timestamp: z
+    .union([z.number(), z.string().regex(/^\d+$/, "Invalid timestamp")])
+    .optional()
+    .transform((t) => (t ? Number(t) : Date.now())),
 })
 
 export type TransferPayload = z.infer<typeof TransferSchema>
 
-export function validateTransfer(input: unknown): TransferPayload {
-  const result = TransferSchema.safeParse(input)
-  if (!result.success) {
-    throw new Error("Transfer validation failed")
-  }
-  return result.data
-}
-
-export function sanitizeTransfer(raw: any): TransferPayload {
-  return {
-    from: raw.from.trim(),
-    to: raw.to.trim(),
-    amount: Number(raw.amount),
-    tokenMint: raw.tokenMint,
-    type: raw.type,
-    timestamp: raw.timestamp ?? Date.now()
+export function sanitizeAndValidateTransfer(input: unknown): TransferPayload {
+  try {
+    const parsed = TransferSchema.parse(input)
+    console.info("[sanitizeAndValidateTransfer] Success", parsed)
+    return parsed
+  } catch (err) {
+    if (err instanceof ZodError) {
+      console.error(
+        "[sanitizeAndValidateTransfer] Validation errors:",
+        err.errors.map((e) => `${e.path.join(".")}: ${e.message}`)
+      )
+    }
+    throw err
   }
 }
 
 export function describeSchemaFields(): string[] {
-  return TransferSchema._def.shape()
-    ? Object.keys(TransferSchema._def.shape())
-    : []
+  return Object.keys(TransferSchema.shape)
 }
