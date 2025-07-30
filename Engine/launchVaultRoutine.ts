@@ -1,11 +1,7 @@
-/**
- * Possible intents for vault operations.
- */
+import fetch from "node-fetch"
+
 export type VaultIntent = "lock" | "release" | "audit"
 
-/**
- * Request payload for vault operations.
- */
 export interface VaultRequest {
   vaultId: string
   operator: string
@@ -14,9 +10,6 @@ export interface VaultRequest {
   amount: number
 }
 
-/**
- * Standardized response for vault operations.
- */
 export interface VaultResponse {
   success: boolean
   intent: VaultIntent
@@ -24,34 +17,28 @@ export interface VaultResponse {
   error?: string
 }
 
-/**
- * Internal payload sent over the wire, enriched with metadata.
- */
 interface VaultPayload extends VaultRequest {
   timestamp: number
-  nonce: number
+  nonce: string
 }
 
-/**
- * Options for configuring the VaultRoutine.
- */
 export interface VaultRoutineOptions {
-  /** Number of retry attempts on failure (default: 2) */
   retries?: number
-  /** Milliseconds between retry attempts (default: 500) */
   backoffMs?: number
-  /** Request timeout in milliseconds (default: 5000) */
   timeoutMs?: number
+  /** Hooks for instrumentation */
+  hooks?: {
+    onBeforeRequest?: (payload: VaultPayload) => void
+    onAfterResponse?: (response: VaultResponse) => void
+    onError?: (error: Error, attempt: number) => void
+  }
 }
 
-/**
- * VaultRoutine handles calls to a remote vault API endpoint,
- * with automatic payload preparation, retries, and timeout.
- */
 export class VaultRoutine {
   private retries: number
   private backoffMs: number
   private timeoutMs: number
+  private hooks: NonNullable<VaultRoutineOptions["hooks"]>
 
   constructor(
     private readonly endpoint: string,
@@ -60,67 +47,83 @@ export class VaultRoutine {
     this.retries = opts.retries ?? 2
     this.backoffMs = opts.backoffMs ?? 500
     this.timeoutMs = opts.timeoutMs ?? 5000
+    this.hooks = {
+      onBeforeRequest: opts.hooks?.onBeforeRequest ?? (() => {}),
+      onAfterResponse: opts.hooks?.onAfterResponse ?? (() => {}),
+      onError: opts.hooks?.onError ?? (() => {}),
+    }
   }
 
-  /**
-   * Executes a vault action with retry and timeout logic.
-   * @param req VaultRequest object
-   * @returns VaultResponse with success flag, intent, txId or error
-   */
   public async execute(req: VaultRequest): Promise<VaultResponse> {
     this.validateRequest(req)
     const payload = this.preparePayload(req)
 
     for (let attempt = 0; attempt <= this.retries; attempt++) {
       try {
-        const controller = new AbortController()
-        const id = setTimeout(() => controller.abort(), this.timeoutMs)
+        this.log("info", `Attempt ${attempt + 1} for intent ${req.intent}`, payload)
+        this.hooks.onBeforeRequest(payload)
 
-        const response = await fetch(`${this.endpoint}/vault/trigger`, {
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(), this.timeoutMs)
+
+        const res = await fetch(`${this.endpoint}/vault/trigger`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
           signal: controller.signal,
         })
+        clearTimeout(timer)
 
-        clearTimeout(id)
-
-        if (!response.ok) {
-          throw new Error(
-            `HTTP ${response.status} ${response.statusText}`
-          )
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status} ${res.statusText}`)
         }
 
-        const json = await response.json()
-        return {
+        const json = await res.json().catch(() => ({}))
+        const response: VaultResponse = {
           success: true,
           intent: req.intent,
           txId: typeof json.txId === "string" ? json.txId : undefined,
         }
+
+        this.log("info", "Request succeeded", response)
+        this.hooks.onAfterResponse(response)
+        return response
       } catch (err: any) {
-        if (attempt < this.retries && this.isRetryable(err)) {
+        this.hooks.onError(err, attempt + 1)
+        const retryable = this.isRetryable(err)
+        this.log("warn", `Error on attempt ${attempt + 1}: ${err.message}`, {
+          retryable,
+        })
+        if (attempt < this.retries && retryable) {
           await this.sleep(this.backoffMs * (attempt + 1))
           continue
         }
-        return {
+        const errorMsg =
+          err.name === "AbortError"
+            ? `Timeout after ${this.timeoutMs}ms`
+            : err.message
+        const failure: VaultResponse = {
           success: false,
           intent: req.intent,
-          error: err.name === "AbortError"
-            ? `Request timed out after ${this.timeoutMs}ms`
-            : err.message,
+          error: errorMsg,
         }
+        this.log("error", "Request failed", failure)
+        this.hooks.onAfterResponse(failure)
+        return failure
       }
     }
 
-    // Fallback case; should not reach
-    return {
+    // Should not reach here
+    const fallback: VaultResponse = {
       success: false,
       intent: req.intent,
       error: "Unexpected failure",
     }
+    this.log("error", "Fallback response", fallback)
+    this.hooks.onAfterResponse(fallback)
+    return fallback
   }
 
-  /** Validate required fields and types in the request */
   private validateRequest(req: VaultRequest): void {
     if (!req.vaultId || !req.operator || !req.tokenMint) {
       throw new TypeError("vaultId, operator, and tokenMint are required")
@@ -133,26 +136,28 @@ export class VaultRoutine {
     }
   }
 
-  /** Build the payload with timestamp and random nonce */
   private preparePayload(req: VaultRequest): VaultPayload {
     return {
       ...req,
       timestamp: Date.now(),
-      nonce: Math.floor(Math.random() * 1e6),
+      nonce: crypto.randomUUID(),
     }
   }
 
-  /** Simple backoff sleep */
+  private isRetryable(err: Error): boolean {
+    return (
+      err.name === "AbortError" ||
+      /NetworkError|ECONNRESET|ECONNREFUSED/.test(err.message) ||
+      /HTTP 5\d{2}/.test(err.message)
+    )
+  }
+
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
-  /** Determine if an error should trigger a retry */
-  private isRetryable(err: any): boolean {
-    return (
-      err.name === "AbortError" ||
-      err.message.startsWith("NetworkError") ||
-      /HTTP 5\d{2}/.test(err.message)
-    )
+  private log(level: "info" | "warn" | "error", msg: string, meta: any = {}): void {
+    const entry = { timestamp: new Date().toISOString(), level, msg, ...meta }
+    console[level](`[VaultRoutine]`, entry)
   }
 }
