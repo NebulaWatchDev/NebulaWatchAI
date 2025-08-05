@@ -1,25 +1,50 @@
-
-
 import fs from "fs"
+import fsPromises from "fs/promises"
 import path from "path"
 
-export function ensureDirectoryExists(dirPath: string): void {
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath, { recursive: true })
+/**
+ * Ensure that a directory exists, creating it (and parents) if needed.
+ * @param dirPath  Absolute or relative directory path
+ */
+export async function ensureDirectoryExists(dirPath: string): Promise<void> {
+  try {
+    await fsPromises.mkdir(dirPath, { recursive: true })
+  } catch (err: any) {
+    throw new Error(`Failed to create directory "${dirPath}": ${err.message}`)
   }
 }
 
-export function isContainerWritable(dirPath: string): boolean {
-  const testFile = path.join(dirPath, "__test.tmp")
+/**
+ * Check whether a directory is writable by creating and removing a temp file.
+ * @param dirPath  Directory to test
+ * @returns        True if writable, false otherwise
+ */
+export async function isContainerWritable(dirPath: string): Promise<boolean> {
+  const testFile = path.join(dirPath, `.__writetest_${Date.now()}`)
   try {
-    fs.writeFileSync(testFile, "test")
-    fs.unlinkSync(testFile)
+    await fsPromises.writeFile(testFile, "test")
+    await fsPromises.unlink(testFile)
     return true
   } catch {
     return false
   }
 }
 
-export function validateContainerStructure(dirPath: string, requiredFiles: string[]): boolean {
-  return requiredFiles.every((file) => fs.existsSync(path.join(dirPath, file)))
+/**
+ * Validate that a directory contains all required files.
+ * @param dirPath        Directory path
+ * @param requiredFiles  Filenames that must exist within dirPath
+ * @returns              True if all files are present, false otherwise
+ */
+export async function validateContainerStructure(
+  dirPath: string,
+  requiredFiles: string[]
+): Promise<boolean> {
+  try {
+    const entries = await fsPromises.readdir(dirPath)
+    const set = new Set(entries)
+    return requiredFiles.every((file) => set.has(file))
+  } catch {
+    return false
+  }
 }
