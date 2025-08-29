@@ -1,13 +1,23 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://example.com/schemas/scanReport.json",
+  "$id": "https://example.com/schemas/scanReport.v2.json",
   "title": "ScanReport",
+  "description": "Structured report describing token scan results, telemetry, risk indicators, and assessment.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "description": "Semantic version of this schema the document conforms to",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z-.]+)?(?:\\+[0-9A-Za-z-.]+)?$",
+      "default": "2.0.0"
+    },
     "scanReportId": {
       "type": "string",
-      "description": "Unique identifier for this scan report"
+      "description": "Unique identifier for this scan report",
+      "minLength": 3,
+      "maxLength": 200,
+      "pattern": "^[A-Za-z0-9._:-]+$"
     },
     "timestamp": {
       "type": "string",
@@ -16,7 +26,15 @@
     },
     "engine": {
       "type": "string",
-      "description": "Name or version of the scanning engine"
+      "description": "Name or version of the scanning engine",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "network": {
+      "type": "string",
+      "description": "Target blockchain network",
+      "enum": ["solana", "ethereum", "bsc", "polygon", "arbitrum", "optimism", "other"],
+      "default": "solana"
     },
     "tokenData": {
       "$ref": "#/definitions/TokenData"
@@ -32,6 +50,32 @@
     },
     "assessment": {
       "$ref": "#/definitions/Assessment"
+    },
+    "tags": {
+      "type": "array",
+      "description": "Free-form labels to aid filtering and search",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64,
+        "pattern": "^[A-Za-z0-9._-]+$"
+      },
+      "uniqueItems": true,
+      "maxItems": 64
+    },
+    "links": {
+      "type": "array",
+      "description": "Related hyperlinks such as explorer or documentation links",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "rel": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "href": { "type": "string", "format": "uri" }
+        },
+        "required": ["rel", "href"]
+      },
+      "maxItems": 20
     }
   },
   "required": [
@@ -45,16 +89,25 @@
     "assessment"
   ],
   "definitions": {
+    "Base58String": {
+      "type": "string",
+      "description": "Base58-encoded string (typical for Solana addresses)",
+      "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$"
+    },
     "TokenData": {
       "type": "object",
+      "title": "TokenData",
       "additionalProperties": false,
       "properties": {
         "symbol": {
           "type": "string",
-          "description": "Token ticker symbol"
+          "description": "Token ticker symbol",
+          "minLength": 1,
+          "maxLength": 16,
+          "pattern": "^[A-Z0-9]{1,16}$"
         },
         "mint": {
-          "type": "string",
+          "$ref": "#/definitions/Base58String",
           "description": "Token mint address"
         },
         "status": {
@@ -66,12 +119,19 @@
           "type": "string",
           "format": "date-time",
           "description": "Token's launch date-time window"
+        },
+        "decimals": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18,
+          "description": "Number of decimal places used by the token"
         }
       },
       "required": ["symbol", "mint", "status", "launchWindow"]
     },
     "RiskIndicators": {
       "type": "object",
+      "title": "RiskIndicators",
       "additionalProperties": false,
       "properties": {
         "dexLiquidityDrop": {
@@ -90,6 +150,7 @@
           "type": "number",
           "minimum": 0,
           "maximum": 100,
+          "multipleOf": 0.01,
           "description": "AI-derived cluster behavior risk score (0–100)"
         }
       },
@@ -102,18 +163,24 @@
     },
     "Telemetry": {
       "type": "object",
+      "title": "Telemetry",
       "additionalProperties": false,
       "properties": {
         "liquidityChangePercent": {
           "type": "number",
-          "description": "Percentage change in liquidity"
+          "minimum": -100,
+          "maximum": 100,
+          "description": "Percentage change in liquidity over the reference window"
         },
         "volume24h_SOL": {
           "type": "number",
+          "minimum": 0,
           "description": "24-hour trading volume in SOL"
         },
         "priceFluctuation": {
           "type": "number",
+          "minimum": -100,
+          "maximum": 100,
           "description": "Percent price fluctuation over 24h"
         },
         "uniqueBuyers": {
@@ -130,6 +197,12 @@
           "type": "integer",
           "minimum": 0,
           "description": "Number of linked smart contracts called"
+        },
+        "holderConcentrationTop10Pct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Share of supply held by the top 10% addresses (0–100)"
         }
       },
       "required": [
@@ -143,26 +216,35 @@
     },
     "Observation": {
       "type": "object",
+      "title": "Observation",
       "additionalProperties": false,
       "properties": {
         "tag": {
           "type": "string",
-          "description": "Short label for the observation"
+          "description": "Short label for the observation",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9._:-]+$"
         },
         "detail": {
           "type": "string",
-          "description": "Detailed description of the observation"
+          "description": "Detailed description of the observation",
+          "minLength": 1,
+          "maxLength": 1000
         }
       },
       "required": ["tag", "detail"]
     },
     "ObservationArray": {
       "type": "array",
+      "title": "ObservationArray",
       "minItems": 1,
+      "maxItems": 100,
       "items": { "$ref": "#/definitions/Observation" }
     },
     "Assessment": {
       "type": "object",
+      "title": "Assessment",
       "additionalProperties": false,
       "properties": {
         "threatTier": {
@@ -172,16 +254,63 @@
         },
         "recommendation": {
           "type": "string",
-          "description": "Recommended next steps"
+          "description": "Recommended next steps",
+          "minLength": 1,
+          "maxLength": 2000
         },
         "certainty": {
           "type": "number",
           "minimum": 0,
           "maximum": 1,
+          "multipleOf": 0.01,
           "description": "Confidence in this assessment (0.0–1.0)"
         }
       },
       "required": ["threatTier", "recommendation", "certainty"]
     }
-  }
+  },
+  "examples": [
+    {
+      "schemaVersion": "2.0.0",
+      "scanReportId": "scan_2025_08_29_001",
+      "timestamp": "2025-08-29T12:34:56Z",
+      "engine": "nebula-scanner/1.8.3",
+      "network": "solana",
+      "tokenData": {
+        "symbol": "NEB",
+        "mint": "9ZTeQX4NaGsWUvLtVDXgr9Byqrf1S4dWpbcgVKU6tvFr",
+        "status": "suspicious",
+        "launchWindow": "2025-08-28T09:00:00Z",
+        "decimals": 6
+      },
+      "riskIndicators": {
+        "dexLiquidityDrop": true,
+        "initMintInLast6h": false,
+        "whaleAbsence": true,
+        "clusterBehaviorScore": 87.5
+      },
+      "telemetry": {
+        "liquidityChangePercent": -42.3,
+        "volume24h_SOL": 1234.56,
+        "priceFluctuation": 18.2,
+        "uniqueBuyers": 412,
+        "smartWalletInteractions": 37,
+        "linkedContracts": 5,
+        "holderConcentrationTop10Pct": 72.4
+      },
+      "observations": [
+        { "tag": "LiquidityDrop", "detail": "Sharp removal of liquidity over 15 minutes." },
+        { "tag": "MimicPattern", "detail": "Detected mirrored trades across three wallets." }
+      ],
+      "assessment": {
+        "threatTier": "High",
+        "recommendation": "Defer entry; monitor for 24h; set alerts on liquidity and volume spikes.",
+        "certainty": 0.82
+      },
+      "tags": ["auto", "nightly", "watchlist"],
+      "links": [
+        { "rel": "explorer", "href": "https://explorer.solana.com/address/9ZTeQX4NaGsWUvLtVDXgr9Byqrf1S4dWpbcgVKU6tvFr" }
+      ]
+    }
+  ]
 }
